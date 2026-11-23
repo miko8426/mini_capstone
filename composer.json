@@ -1,0 +1,20 @@
+{
+    "name": "eco-metrics/mini-capstone",
+    "description": "Eco Metrics Capstone Project - Custom MVC PHP Application",
+    "type": "project",
+    "require": {
+        "php": ">=8.0",
+        "fpdf/fpdf": "^1.8"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Eco Metrics Team"
+        }
+    ],
+    "minimum-stability": "stable"
+}

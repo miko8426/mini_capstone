@@ -1,0 +1,10 @@
+# Normalize line endings so PHP sources stay stable across Windows/Linux checkouts.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.xlsx binary

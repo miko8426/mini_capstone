@@ -1,0 +1,46 @@
+# --- Environment / secrets -------------------------------------------------
+# Never commit real credentials. Only the template is tracked.
+.env
+.env.*
+!.env.example
+
+# --- Composer / dependencies ----------------------------------------------
+/vendor/
+node_modules/
+
+# --- Runtime / writable storage -------------------------------------------
+# SQL backups, cache and files generated at runtime stay local.
+/storage/cache/*
+!/storage/cache/.gitkeep
+/storage/logs/*
+!/storage/logs/.gitkeep
+/storage/uploads/*
+!/storage/uploads/.gitkeep
+
+# --- Editor / OS clutter ---------------------------------------------------
+.idea/
+.vscode/
+*.code-workspace
+.claude/settings.local.json
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+
+# --- Logs & temporary files ----------------------------------------------
+*.log
+*.tmp
+*.bak
+.phpunit.result.cache
+.php-cs-fixer.cache
+.php-cs-fixer.php
+.phpunit.cache/
+
+# --- Agent / tooling metadata ---------------------------------------------
+.freebuff/
+.cloud-attachments/
+
+# --- Local build / debug leftovers ---------------------------------------
+/public/build/
+/public/hot
