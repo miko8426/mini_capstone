@@ -9,6 +9,8 @@ use App\Helpers\View;
 use App\Middleware\AuthMiddleware;
 use App\Models\ConsumptionSnapshot;
 use App\Models\Organization;
+use App\Services\ApplianceEstimateService;
+use DateTimeImmutable;
 
 class HistoryController extends BaseController
 {
@@ -30,15 +32,58 @@ class HistoryController extends BaseController
         $page = max(1, (int) ($_GET['page'] ?? 1));
         $result = $snapshots->paginate($filters, $page, 15);
 
+        $records = $result['items'];
+        $totals = $snapshots->totals($filters);
+        $estimate = null;
+
+        // No recorded snapshots for a window that reaches today: show live
+        // estimates instead, so the page agrees with the Dashboard/Analytics.
+        if ($result['total'] === 0 && $this->windowReachesToday($filters)) {
+            $estimate = (new ApplianceEstimateService())->range(
+                $filters,
+                $filters['date_from'] !== '' ? $filters['date_from'] : null,
+                $filters['date_to'] !== '' ? $filters['date_to'] : null
+            );
+
+            if ($estimate['appliances'] === []) {
+                $estimate = null;
+            } else {
+                $records = array_map(static fn (array $appliance): array => [
+                    'id' => null,
+                    'estimated' => true,
+                    'period_start' => $appliance['active_from'],
+                    'period_end' => $estimate['period_end'],
+                    'appliance_name' => $appliance['name'],
+                    'office_name' => $appliance['office_name'],
+                    'campus_name' => $appliance['campus_name'],
+                    'category_name' => $appliance['category_name'],
+                    'total_kwh' => $appliance['total_kwh'],
+                    'rate_per_kwh' => $estimate['rate_per_kwh'],
+                    'electricity_cost' => $appliance['total_cost'],
+                    'co2_kg' => $appliance['total_co2'],
+                ], $estimate['appliances']);
+
+                $totals = [
+                    'total_kwh' => $estimate['total_kwh'],
+                    'total_cost' => $estimate['total_cost'],
+                    'total_co2' => $estimate['total_co2'],
+                ];
+                $result['total'] = count($records);
+                $result['pages'] = 1;
+                $result['page'] = 1;
+            }
+        }
+
         View::render('history/index', [
             'pageTitle' => 'Consumption History',
             'active' => 'history',
-            'records' => $result['items'],
+            'records' => $records,
             'total' => $result['total'],
             'page' => $result['page'],
             'pages' => $result['pages'],
             'filters' => $filters,
-            'totals' => $snapshots->totals($filters),
+            'totals' => $totals,
+            'estimate' => $estimate,
             'campuses' => $this->organization->campuses(Auth::scope()),
             'offices' => $this->organization->offices(Auth::scope()),
         ]);
@@ -62,6 +107,39 @@ class HistoryController extends BaseController
             'active' => 'history',
             'record' => $record,
         ]);
+    }
+
+    /**
+     * True when the filter window is open-ended or runs up to today, i.e. the
+     * period is still in progress and can be projected.
+     *
+     * @param array<string, mixed> $filters
+     */
+    private function windowReachesToday(array $filters): bool
+    {
+        $today = new DateTimeImmutable('today');
+        $to = trim((string) ($filters['date_to'] ?? ''));
+        $from = trim((string) ($filters['date_from'] ?? ''));
+
+        if ($to !== '') {
+            $end = DateTimeImmutable::createFromFormat('Y-m-d', $to);
+            if (!$end instanceof DateTimeImmutable || $end->format('Y-m-d') !== $to) {
+                return false;
+            }
+
+            return $end >= $today;
+        }
+
+        // Open-ended window: only project when it starts in the current month.
+        if ($from !== '') {
+            $start = DateTimeImmutable::createFromFormat('Y-m-d', $from);
+
+            return $start instanceof DateTimeImmutable
+                && $start->format('Y-m-d') === $from
+                && $start->format('Y-m') === $today->format('Y-m');
+        }
+
+        return true;
     }
 
     /** @return array<string, mixed> */

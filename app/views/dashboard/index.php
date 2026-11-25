@@ -5,7 +5,7 @@ $monthLabel = (string) ($stats['month_label'] ?? date('M Y'));
 
 $cards = [
     ['label' => 'Total Appliances', 'value' => number_format((int) $stats['total_appliances']), 'icon' => 'bi-plug', 'href' => '/appliances', 'period' => ''],
-    ['label' => 'Monthly Electricity Consumption', 'value' => number_format((float) $stats['total_consumption'], 2) . ' kWh', 'icon' => 'bi-lightning-charge', 'href' => '/history', 'period' => $monthLabel],
+    ['label' => 'Estimated Monthly Electricity Consumption', 'value' => number_format((float) $stats['total_consumption'], 2) . ' kWh', 'icon' => 'bi-lightning-charge', 'href' => '/history', 'period' => $monthLabel],
     ['label' => 'Estimated Monthly Electricity Expenses', 'value' => 'PHP ' . number_format((float) $stats['total_cost'], 2), 'icon' => 'bi-cash-stack', 'href' => '/analytics', 'period' => $monthLabel],
     ['label' => 'Estimated Monthly Carbon Emissions', 'value' => number_format((float) $stats['total_emissions'], 2) . ' kg', 'icon' => 'bi-cloud', 'href' => '/analytics', 'period' => $monthLabel],
     ['label' => 'Total Offices', 'value' => number_format((int) $stats['total_offices']), 'icon' => 'bi-door-open', 'href' => '/offices', 'period' => ''],
@@ -19,7 +19,7 @@ $json = static fn ($data): string => json_encode($data, JSON_HEX_TAG | JSON_HEX_
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
         <h5 class="mb-1">Institutional Overview</h5>
-        <p class="text-muted mb-0">Live statistics from your appliance inventory and monthly consumption records.</p>
+        <p class="text-muted mb-0">Every active appliance accrues daily usage from the 1st of the month (or the day it was added) through today, so estimates keep updating without recorded usage.</p>
     </div>
     <?php if ($canRecord): ?><a href="/usage" class="btn btn-success"><i class="bi bi-plus-lg me-1"></i>Record usage</a><?php endif; ?>
 </div>

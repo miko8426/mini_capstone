@@ -22,6 +22,7 @@ $chartData = [
     'appliance' => ['labels' => array_column($topAppliances, 'name'), 'values' => array_map(static fn ($r) => round((float) $r['total_kwh'], 2), $topAppliances)],
 ];
 $isMonthlyDefault = $isMonthlyDefault ?? false;
+$estimateMode = $estimateMode ?? false;
 $periodLabel = $periodLabel ?? '';
 if ($isMonthlyDefault && $periodLabel !== '') {
     $periodText = $periodLabel;
@@ -40,7 +41,11 @@ $palette = ['#2d5a27', '#50c878', '#86c98a', '#0f766e', '#84cc16', '#22c55e', '#
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
         <h5 class="mb-1">Consumption Analytics</h5>
-        <p class="text-muted mb-0">Monthly view of immutable historical snapshots<?= $isMonthlyDefault && $periodLabel !== '' ? ' — latest recorded month: ' . View::e($periodLabel) : '' ?>.</p>
+        <?php if ($estimateMode): ?>
+            <p class="text-muted mb-0">No usage recorded for this period, so every figure and chart is projected from the active appliance inventory — from the 1st of the month (or the day each appliance was added) through today.</p>
+        <?php else: ?>
+            <p class="text-muted mb-0">Monthly view of immutable historical snapshots<?= $periodLabel !== '' ? ' — ' . View::e($periodLabel) : '' ?>.</p>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -88,13 +93,13 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="col-sm-6 col-xl-3"><div class="card stat-card"><div class="card-body"><h6 class="text-muted mb-1">Total consumption</h6><h4 class="mb-0"><?= number_format($totals['total_kwh'], 2) ?> kWh</h4><div class="text-muted small mt-1"><?= View::e($periodText) ?></div></div></div></div>
     <div class="col-sm-6 col-xl-3"><div class="card stat-card"><div class="card-body"><h6 class="text-muted mb-1">Total cost</h6><h4 class="mb-0">PHP <?= number_format($totals['total_cost'], 2) ?></h4><div class="text-muted small mt-1"><?= View::e($periodText) ?></div></div></div></div>
     <div class="col-sm-6 col-xl-3"><div class="card stat-card"><div class="card-body"><h6 class="text-muted mb-1">Total emissions</h6><h4 class="mb-0"><?= number_format($totals['total_co2'], 2) ?> kg</h4><div class="text-muted small mt-1"><?= View::e($periodText) ?></div></div></div></div>
-    <div class="col-sm-6 col-xl-3"><div class="card stat-card"><div class="card-body"><h6 class="text-muted mb-1">Historical records</h6><h4 class="mb-0"><?= number_format($totals['records']) ?></h4><div class="text-muted small mt-1"><?= View::e($periodText) ?></div></div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card stat-card"><div class="card-body"><h6 class="text-muted mb-1"><?= $estimateMode ? 'Appliances counted' : 'Historical records' ?></h6><h4 class="mb-0"><?= number_format($totals['records']) ?></h4><div class="text-muted small mt-1"><?= View::e($periodText) ?></div></div></div></div>
 </div>
 
 <?php if (!$hasData): ?>
     <div class="card"><div class="card-body text-center text-muted py-5">
         <i class="bi bi-bar-chart-line fs-1 d-block mb-2"></i>
-        No historical consumption records match the selected filters. Record usage to populate analytics.
+        No historical consumption records match the selected filters, and no active appliances fall inside this period. Record usage or add appliances to populate analytics.
     </div></div>
 <?php else: ?>
 <div class="row g-4">

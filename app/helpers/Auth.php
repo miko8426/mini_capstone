@@ -66,6 +66,44 @@ class Auth
         Session::destroy();
     }
 
+    /**
+     * Re-read the account's role and organizational assignment from the
+     * database on every request, so a campus/office change (or a role change,
+     * deactivation or deletion) made by an administrator applies immediately
+     * instead of waiting for the user to log out and back in.
+     *
+     * Logs the session out when the account is no longer allowed to sign in.
+     */
+    public static function syncSession(): void
+    {
+        $userId = (int) Session::get('user_id', 0);
+        if ($userId <= 0) {
+            return;
+        }
+
+        $db = Database::getInstance()->getConnection();
+        $stmt = $db->prepare(
+            'SELECT u.first_name, u.last_name, u.campus_id, u.office_id, u.status, u.deleted_at,
+                    r.name AS role_name
+             FROM users u
+             JOIN roles r ON r.id = u.role_id
+             WHERE u.id = ?'
+        );
+        $stmt->execute([$userId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($user === false || $user['status'] !== 'active' || $user['deleted_at'] !== null) {
+            self::logout();
+
+            return;
+        }
+
+        Session::set('user_role', (string) $user['role_name']);
+        Session::set('user_name', trim((string) $user['first_name'] . ' ' . (string) $user['last_name']));
+        Session::set('user_campus_id', $user['campus_id'] !== null ? (int) $user['campus_id'] : null);
+        Session::set('user_office_id', $user['office_id'] !== null ? (int) $user['office_id'] : null);
+    }
+
     public static function user(): array
     {
         return [
@@ -110,10 +148,11 @@ class Auth
     /**
      * Organizational scope enforced in PHP for non-admin accounts.
      *
-     * A campus assignment grants access to everything inside that campus;
-     * an office assignment is only used when no campus has been assigned.
-     * An account with neither matches nothing (campus_id -1).
-     * An empty array means unrestricted (administrator).
+     * The most specific assignment limits visibility: an office assignment
+     * restricts the account to that office, otherwise a campus assignment
+     * restricts it to everything inside that campus. An account with neither
+     * matches nothing (campus_id -1). An empty array means unrestricted
+     * (administrator).
      *
      * @return array<string, int>
      */
@@ -123,14 +162,14 @@ class Auth
             return [];
         }
 
-        $campusId = (int) (Session::get('user_campus_id') ?? 0);
-        if ($campusId > 0) {
-            return ['campus_id' => $campusId];
-        }
-
         $officeId = (int) (Session::get('user_office_id') ?? 0);
         if ($officeId > 0) {
             return ['office_id' => $officeId];
+        }
+
+        $campusId = (int) (Session::get('user_campus_id') ?? 0);
+        if ($campusId > 0) {
+            return ['campus_id' => $campusId];
         }
 
         return ['campus_id' => -1];
@@ -145,14 +184,26 @@ class Auth
 
     /**
      * Merge the logged-in user's scope into a filter array. Admin filters win
-     * only when no scope restriction applies.
+     * only when no scope restriction applies. A conflicting request filter on
+     * the other hierarchy level (a campus id while scoped to an office, or an
+     * office id while scoped to a campus) is dropped so URL parameters can
+     * never widen or empty the result set.
      *
      * @param array<string, mixed> $filters
      * @return array<string, mixed>
      */
     public static function applyScope(array $filters): array
     {
-        return array_merge($filters, self::scope());
+        $scope = self::scope();
+
+        if (isset($scope['office_id'])) {
+            unset($filters['campus_id']);
+        }
+        if (isset($scope['campus_id'])) {
+            unset($filters['office_id']);
+        }
+
+        return array_merge($filters, $scope);
     }
 
     /**
@@ -182,11 +233,11 @@ class Auth
         }
 
         $scope = self::scope();
-        if (isset($scope['campus_id'])) {
-            return $campusId !== null && $scope['campus_id'] === $campusId;
-        }
         if (isset($scope['office_id'])) {
             return $scope['office_id'] === $officeId;
+        }
+        if (isset($scope['campus_id'])) {
+            return $campusId !== null && $scope['campus_id'] === $campusId;
         }
 
         return false;

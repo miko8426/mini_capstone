@@ -91,9 +91,7 @@ $userName = (string) Session::get('user_name', '');
                         <li><h6 class="dropdown-header"><?= View::e($userName !== '' ? $userName : 'User') ?></h6></li>
                         <li><span class="dropdown-item-text text-muted small"><i class="bi bi-shield-lock me-1"></i><?= View::e($userRole) ?></span></li>
                         <li><hr class="dropdown-divider"></li>
-                        <?php if ($userRole === 'Super Admin'): ?>
-                            <li><a class="dropdown-item" href="/recycle-bin"><i class="bi bi-recycle me-2"></i>Recycle Bin</a></li>
-                        <?php endif; ?>
+                        <li><a class="dropdown-item" href="/recycle-bin"><i class="bi bi-recycle me-2"></i>Recycle Bin</a></li>
                         <li><a class="dropdown-item text-danger" href="/logout"
                                data-confirm="Are you sure you want to log out of your account?"
                                data-confirm-title="Log out?"

@@ -12,6 +12,7 @@ use App\Models\Appliance;
 use App\Models\ConsumptionSnapshot;
 use App\Models\Notification;
 use App\Models\Organization;
+use App\Services\ApplianceEstimateService;
 use App\Services\CalculationService;
 
 class DashboardController extends BaseController
@@ -29,10 +30,14 @@ class DashboardController extends BaseController
         $organization = new Organization();
         $notifications = new Notification();
 
-        // Dashboard statistics default to the latest recorded month (as a
-        // single calendar-month aggregate) rather than an all-time total.
-        $monthly = $snapshots->monthlyTotals($scope);
-        $monthLabel = date('M Y', (int) strtotime($monthly['month'] . '-01'));
+        // Consumption, cost and emission cards are a live estimate for the
+        // current month: every active appliance still in the inventory accrues
+        // daily usage from the later of the 1st of the month and the date it was
+        // added, through today. Nothing has to be recorded for it to count.
+        $estimate = (new ApplianceEstimateService($appliances))->estimate($scope);
+        $monthLabel = date('M Y', (int) strtotime($estimate['month'] . '-01'));
+        $periodLabel = date('M j', (int) strtotime($estimate['period_start']))
+            . ' – ' . date('M j', (int) strtotime($estimate['period_end'])) . ' · estimated';
         $activeAppliances = $appliances->allActive($scope);
 
         $offices = $organization->offices();
@@ -65,12 +70,12 @@ class DashboardController extends BaseController
             'active' => 'dashboard',
             'stats' => [
                 'total_appliances' => count($activeAppliances),
-                'total_consumption' => $monthly['total_kwh'],
-                'total_cost' => $monthly['total_cost'],
-                'total_emissions' => $monthly['total_co2'],
+                'total_consumption' => $estimate['total_kwh'],
+                'total_cost' => $estimate['total_cost'],
+                'total_emissions' => $estimate['total_co2'],
                 'total_offices' => count($offices),
                 'high_consumption' => $highCount,
-                'month_label' => $monthLabel,
+                'month_label' => $monthLabel . ' · ' . $periodLabel,
             ],
             'highConsumers' => array_slice($estimates, 0, 5),
             'notifications' => $notifications->forUser($userId, true, 5),

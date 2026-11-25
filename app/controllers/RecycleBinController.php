@@ -32,14 +32,16 @@ class RecycleBinController extends BaseController
 
     public function index(): void
     {
-        $this->guardAdmin();
-
         $archived = $this->appliances->paginate(Auth::applyScope(['status' => 'archived']), 1, self::LIST_LIMIT);
 
         View::render('recycle_bin/index', [
             'pageTitle' => 'Recycle Bin',
             'active' => 'recycle-bin',
-            'users' => $this->users->deleted(self::LIST_LIMIT),
+            // Deleted accounts are only listed for administrators; every other
+            // role gets the appliance bin inside its own scope.
+            'showAccounts' => Auth::canAdminister(),
+            'canManage' => Auth::canManage(),
+            'users' => Auth::canAdminister() ? $this->users->deleted(self::LIST_LIMIT) : [],
             'appliances' => $archived['items'],
             'applianceTotal' => $archived['total'],
             'csrfToken' => Session::generateCsrfToken(),
@@ -87,14 +89,8 @@ class RecycleBinController extends BaseController
 
     public function restoreAppliance(int $id): void
     {
-        $this->guardAdmin();
+        $appliance = $this->guardScopedAppliance($id);
         $this->guardCsrf('/recycle-bin');
-
-        $appliance = $this->appliances->find($id);
-        if ($appliance === null || $appliance['archived_at'] === null) {
-            Session::flash('error', 'That appliance is not in the Recycle Bin.');
-            $this->redirect('/recycle-bin');
-        }
 
         $this->appliances->restore($id);
         Audit::record('RESTORE', 'appliances', $id, 'Restored appliance ' . $appliance['name'] . ' from the Recycle Bin');
@@ -104,14 +100,8 @@ class RecycleBinController extends BaseController
 
     public function purgeAppliance(int $id): void
     {
-        $this->guardAdmin();
+        $appliance = $this->guardScopedAppliance($id);
         $this->guardCsrf('/recycle-bin');
-
-        $appliance = $this->appliances->find($id);
-        if ($appliance === null || $appliance['archived_at'] === null) {
-            Session::flash('error', 'That appliance is not in the Recycle Bin.');
-            $this->redirect('/recycle-bin');
-        }
 
         $this->appliances->forceDelete($id);
         Audit::record('DELETE', 'appliances', $id, 'Permanently deleted appliance ' . $appliance['name'] . ' from the Recycle Bin');
@@ -172,7 +162,7 @@ class RecycleBinController extends BaseController
      */
     public function purgeAppliances(): void
     {
-        $this->guardAdmin();
+        $this->guardManage();
         $this->guardCsrf('/recycle-bin');
 
         $ids = $this->postedIds();
@@ -184,7 +174,7 @@ class RecycleBinController extends BaseController
         $removable = [];
         foreach ($ids as $id) {
             $appliance = $this->appliances->find($id);
-            if ($appliance === null || $appliance['archived_at'] === null) {
+            if ($appliance === null || $appliance['archived_at'] === null || !Auth::allows($appliance)) {
                 continue;
             }
             $removable[] = $id;
@@ -228,8 +218,38 @@ class RecycleBinController extends BaseController
     {
         if (!Auth::canAdminister()) {
             http_response_code(403);
-            exit('Access Denied: only a System Administrator can use the Recycle Bin.');
+            exit('Access Denied: only a System Administrator can manage deleted accounts.');
         }
+    }
+
+    /**
+     * Appliance bin actions are open to every account that may manage the
+     * inventory, but only for records inside that account's own scope.
+     */
+    private function guardManage(): void
+    {
+        if (!Auth::canManage()) {
+            http_response_code(403);
+            exit('Access Denied: your role has read-only access to the Recycle Bin.');
+        }
+    }
+
+    /**
+     * Load an archived appliance the current user is allowed to act on.
+     *
+     * @return array<string, mixed>
+     */
+    private function guardScopedAppliance(int $id): array
+    {
+        $this->guardManage();
+
+        $appliance = $this->appliances->find($id);
+        if ($appliance === null || $appliance['archived_at'] === null || !Auth::allows($appliance)) {
+            Session::flash('error', 'That appliance is not in your Recycle Bin.');
+            $this->redirect('/recycle-bin');
+        }
+
+        return $appliance;
     }
 
     private function guardCsrf(string $redirectTo): void

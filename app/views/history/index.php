@@ -1,19 +1,32 @@
 <?php
 use App\Helpers\View;
+
+$estimate = $estimate ?? null;
 ?>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
         <h5 class="mb-1">Consumption History</h5>
-        <p class="text-muted mb-0">Immutable snapshots: appliance specifications, rate and emission factor are frozen at calculation time.</p>
+        <p class="text-muted mb-0">Immutable snapshots: appliance specifications, rate and emission factor are frozen at calculation time.<?= $estimate !== null ? ' Periods without recorded usage show live estimates.' : '' ?></p>
     </div>
     <a href="/usage" class="btn btn-success"><i class="bi bi-plus-lg me-1"></i>Record usage</a>
 </div>
 
+<?php $statSuffix = $estimate !== null ? ' · estimated' : ''; ?>
 <div class="row g-3 mb-3">
-    <div class="col-sm-4"><div class="card stat-card"><div class="card-body"><h6 class="text-muted mb-1">Total kWh</h6><h4 class="mb-0"><?= number_format($totals['total_kwh'], 2) ?></h4></div></div></div>
-    <div class="col-sm-4"><div class="card stat-card"><div class="card-body"><h6 class="text-muted mb-1">Electricity cost</h6><h4 class="mb-0">PHP <?= number_format($totals['total_cost'], 2) ?></h4></div></div></div>
-    <div class="col-sm-4"><div class="card stat-card"><div class="card-body"><h6 class="text-muted mb-1">Carbon emissions</h6><h4 class="mb-0"><?= number_format($totals['total_co2'], 2) ?> kg</h4></div></div></div>
+    <div class="col-sm-4"><div class="card stat-card"><div class="card-body"><h6 class="text-muted mb-1">Total kWh<?= View::e($statSuffix) ?></h6><h4 class="mb-0"><?= number_format($totals['total_kwh'], 2) ?></h4></div></div></div>
+    <div class="col-sm-4"><div class="card stat-card"><div class="card-body"><h6 class="text-muted mb-1">Electricity cost<?= View::e($statSuffix) ?></h6><h4 class="mb-0">PHP <?= number_format($totals['total_cost'], 2) ?></h4></div></div></div>
+    <div class="col-sm-4"><div class="card stat-card"><div class="card-body"><h6 class="text-muted mb-1">Carbon emissions<?= View::e($statSuffix) ?></h6><h4 class="mb-0"><?= number_format($totals['total_co2'], 2) ?> kg</h4></div></div></div>
 </div>
+
+<?php if ($estimate !== null): ?>
+    <div class="alert alert-info d-flex gap-2 align-items-start">
+        <i class="bi bi-info-circle mt-1"></i>
+        <div>
+            <strong>No usage has been recorded for this period, so these are live estimates.</strong>
+            <div class="small">Active appliances accrue from the later of <?= View::e($estimate['period_start']) ?> and the date they were added, through <?= View::e($estimate['period_end']) ?>, using the rate of PHP <?= number_format((float) $estimate['rate_per_kwh'], 4) ?>/kWh and <?= number_format((float) $estimate['emission_factor'], 2) ?> kg CO2e/kWh. Recorded snapshots always take precedence.</div>
+        </div>
+    </div>
+<?php endif; ?>
 
 <form class="card card-body mb-3" method="get" action="/history">
     <div class="row g-2">
@@ -69,6 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <tr><td colspan="9" class="text-center text-muted py-4">No historical records match these filters.</td></tr>
             <?php endif; ?>
             <?php foreach ($records as $record): ?>
+                <?php $isEstimate = !empty($record['estimated']); ?>
                 <tr>
                     <td><small><?= View::e($record['period_start']) ?><br><?= View::e($record['period_end']) ?></small></td>
                     <td class="fw-semibold"><?= View::e($record['appliance_name']) ?></td>
@@ -78,7 +92,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td class="text-end"><?= number_format((float) $record['rate_per_kwh'], 4) ?></td>
                     <td class="text-end">PHP <?= number_format((float) $record['electricity_cost'], 2) ?></td>
                     <td class="text-end"><?= number_format((float) $record['co2_kg'], 2) ?></td>
-                    <td class="text-end"><a href="/history/<?= (int) $record['id'] ?>" class="btn btn-sm btn-outline-success">Details</a></td>
+                    <td class="text-end">
+                        <?php if ($isEstimate): ?>
+                            <span class="badge bg-secondary" title="Projected from appliance specifications">Estimated</span>
+                        <?php else: ?>
+                            <a href="/history/<?= (int) $record['id'] ?>" class="btn btn-sm btn-outline-success">Details</a>
+                        <?php endif; ?>
+                    </td>
                 </tr>
             <?php endforeach; ?>
             </tbody>

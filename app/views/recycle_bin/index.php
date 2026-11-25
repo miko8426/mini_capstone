@@ -3,14 +3,26 @@ use App\Helpers\View;
 
 $users = $users ?? [];
 $appliances = $appliances ?? [];
+$showAccounts = $showAccounts ?? false;
+$canManage = $canManage ?? false;
 ?>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
         <h5 class="mb-1">Recycle Bin</h5>
-        <p class="text-muted mb-0">Deleted accounts and appliances are kept here. Restore them, or delete them permanently.</p>
+        <p class="text-muted mb-0">
+            Deleted appliances are kept here, so nothing is lost by mistake.
+            <?php if ($showAccounts): ?>
+                Deleted accounts are listed here too. Restore them, or delete them permanently.
+            <?php elseif ($canManage): ?>
+                Restore an appliance to the active inventory, or delete it permanently.
+            <?php else: ?>
+                Your role can view this bin but not change it.
+            <?php endif; ?>
+        </p>
     </div>
 </div>
 
+<?php if ($showAccounts): ?>
 <div class="card mb-3">
     <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <span class="fw-semibold"><i class="bi bi-person-x me-1"></i>Deleted accounts</span>
@@ -94,13 +106,14 @@ $appliances = $appliances ?? [];
         </table>
     </div>
 </div>
+<?php endif; ?>
 
 <div class="card">
     <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <span class="fw-semibold"><i class="bi bi-plug me-1"></i>Deleted appliances</span>
         <span class="badge text-bg-light border"><?= (int) ($applianceTotal ?? count($appliances)) ?></span>
     </div>
-    <?php if ($appliances !== []): ?>
+    <?php if ($appliances !== [] && $canManage): ?>
         <div class="card-body border-bottom py-2">
             <form id="bulkPurgeAppliancesForm" method="POST" action="/recycle-bin/appliances/bulk-purge"
                   class="d-flex flex-wrap align-items-center gap-2 mb-0"
@@ -120,8 +133,10 @@ $appliances = $appliances ?? [];
             <thead class="table-light">
                 <tr>
                     <th class="text-center" style="width: 36px;">
-                        <input class="form-check-input" type="checkbox" id="bulkPurgeAppliancesSelectAll"
-                               title="Select all deleted appliances" aria-label="Select all deleted appliances">
+                        <?php if ($canManage): ?>
+                            <input class="form-check-input" type="checkbox" id="bulkPurgeAppliancesSelectAll"
+                                   title="Select all deleted appliances" aria-label="Select all deleted appliances">
+                        <?php endif; ?>
                     </th>
                     <th>Appliance</th>
                     <th>Category</th>
@@ -143,9 +158,11 @@ $appliances = $appliances ?? [];
             <?php foreach ($appliances as $appliance): ?>
                 <tr>
                     <td class="text-center">
-                        <input class="form-check-input js-bulk-appliance" type="checkbox" name="ids[]"
-                               value="<?= (int) $appliance['id'] ?>" form="bulkPurgeAppliancesForm"
-                               aria-label="Select <?= View::e($appliance['name']) ?>">
+                        <?php if ($canManage): ?>
+                            <input class="form-check-input js-bulk-appliance" type="checkbox" name="ids[]"
+                                   value="<?= (int) $appliance['id'] ?>" form="bulkPurgeAppliancesForm"
+                                   aria-label="Select <?= View::e($appliance['name']) ?>">
+                        <?php endif; ?>
                     </td>
                     <td>
                         <span class="fw-semibold"><?= View::e($appliance['name']) ?></span>
@@ -166,6 +183,9 @@ $appliances = $appliances ?? [];
                     <td class="text-center"><?= number_format((int) $appliance['quantity']) ?></td>
                     <td><small class="text-muted"><?= View::e((string) ($appliance['archived_at'] ?? '')) ?></small></td>
                     <td class="text-end text-nowrap">
+                        <?php if (!$canManage): ?>
+                            <span class="text-muted small">Read only</span>
+                        <?php else: ?>
                         <form method="POST" action="/recycle-bin/appliances/<?= (int) $appliance['id'] ?>/restore" class="d-inline"
                               data-confirm="The appliance returns to the active inventory with its previous details."
                               data-confirm-title="Restore appliance?"
@@ -180,6 +200,7 @@ $appliances = $appliances ?? [];
                             <input type="hidden" name="csrf_token" value="<?= View::e($csrfToken) ?>">
                             <button class="btn btn-sm btn-outline-danger" title="Delete permanently"><i class="bi bi-trash"></i></button>
                         </form>
+                        <?php endif; ?>
                     </td>
                 </tr>
             <?php endforeach; ?>
